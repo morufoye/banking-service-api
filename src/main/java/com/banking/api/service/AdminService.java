@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.keycloak.representations.idm.RoleRepresentation;
@@ -65,6 +66,8 @@ public class AdminService {
         if (client.getStatus() != ClientStatus.PENDING) {
             throw new RuntimeException("Client is not in pending state");
         }
+
+        approvedRoles.add("ROLE_CLIENT");
 
         client.approve();
         Client savedClient = clientRepository.save(client);
@@ -130,6 +133,8 @@ public class AdminService {
         client.activate();
         Client savedClient = clientRepository.save(client);
 
+        approvedRoles.add("ROLE_CLIENT");
+
         // Enable Keycloak user
         if (client.getKeycloakUserId() != null) {
             enableKeycloakUser(client.getKeycloakUserId(), approvedRoles);
@@ -151,13 +156,21 @@ public class AdminService {
     }
 
     public List<String> getKeycloakRoles() {
-        RealmResource realmResource = keycloakAdmin.realm(realm);
+        Set<String> excludedRoles = Set.of(
+                "ROLE_ADMIN",
+                "default-roles-banking",
+                "uma_authorization",
+                "offline_access",
+                "ROLE_CLIENT"
+        );
 
-        return realmResource
+        return keycloakAdmin
+                .realm(realm)
                 .roles()
                 .list()
                 .stream()
                 .map(RoleRepresentation::getName)
+                .filter(role -> !excludedRoles.contains(role))
                 .toList();
     }
 

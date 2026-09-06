@@ -26,7 +26,7 @@ spring:
 keycloak:
   auth-server-url: ${KEYCLOAK_AUTH_URL:http://localhost:8080}
   realm: ${KEYCLOAK_REALM:banking}
-  resource: ${KEYCLOAK_CLIENT_ID:banking-api}
+  resource: ${KEYCLOAK_CLIENT_ID:banking-onboarding-api}
   credentials:
     secret: ${KEYCLOAK_CLIENT_SECRET:PH0hqqtK2gAO8pxtCKu6q+aOQre3ANUcmFDjpUyMDwE=}
   admin:
