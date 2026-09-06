@@ -26,6 +26,22 @@
         "description": "Client role"
       },
       {
+        "name": "ROLE_CREATE_CUSTOMER",
+        "description": "Create customer role"
+      },
+      {
+        "name": "ROLE_ACCOUNT_BALANCE",
+        "description": "View Account Balance role"
+      },
+      {
+        "name": "ROLE_BANK_STATEMENT",
+        "description": "Bank Statement role"
+      },
+      {
+        "name": "ROLE_DEBIT_CREDIT",
+        "description": "Debit Credit role"
+      },
+      {
         "name": "ROLE_VIEWER",
         "description": "Viewer role"
       }

@@ -1,6 +1,5 @@
 package com.banking.api.service;
 
-import com.banking.api.dto.ApiKeyResponse;
 import com.banking.api.dto.ClientResponse;
 import com.banking.api.entity.ApiKey;
 import com.banking.api.entity.Client;
@@ -21,8 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 
-import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -34,9 +31,7 @@ import org.keycloak.representations.idm.RoleRepresentation;
 public class AdminService {
 
     private final ClientRepository clientRepository;
-    private final UserRepository userRepository;
     private final ApiKeyRepository apiKeyRepository;
-    private final ApiKeyGenerator apiKeyGenerator;
     private final Keycloak keycloakAdmin;
 
     @Value("${keycloak.realm}")
@@ -63,7 +58,7 @@ public class AdminService {
     }
 
     @Transactional
-    public ClientResponse approveClient(UUID clientId) {
+    public ClientResponse approveClient(UUID clientId, List<String> approvedRoles) {
         Client client = clientRepository.findById(clientId)
                 .orElseThrow(() -> new RuntimeException("Client not found"));
 
@@ -76,7 +71,7 @@ public class AdminService {
 
         // Enable Keycloak user if needed
         if (client.getKeycloakUserId() != null) {
-            enableKeycloakUser(client.getKeycloakUserId());
+            enableKeycloakUser(client.getKeycloakUserId(), approvedRoles);
         }
 
         log.info("Client approved: {}", client.getCompanyName());
@@ -128,7 +123,7 @@ public class AdminService {
     }
 
     @Transactional
-    public ClientResponse activateClient(UUID clientId) {
+    public ClientResponse activateClient(UUID clientId, List<String> approvedRoles) {
         Client client = clientRepository.findById(clientId)
                 .orElseThrow(() -> new RuntimeException("Client not found"));
 
@@ -137,7 +132,7 @@ public class AdminService {
 
         // Enable Keycloak user
         if (client.getKeycloakUserId() != null) {
-            enableKeycloakUser(client.getKeycloakUserId());
+            enableKeycloakUser(client.getKeycloakUserId(), approvedRoles);
         }
 
         log.info("Client activated: {}", client.getCompanyName());
@@ -145,42 +140,6 @@ public class AdminService {
     }
 
     // === API Key Management ===
-
-    @Transactional
-    public ApiKeyResponse generateApiKey(UUID clientId, String description) {
-        Client client = clientRepository.findById(clientId)
-                .orElseThrow(() -> new RuntimeException("Client not found"));
-
-        if (client.getStatus() != ClientStatus.ACTIVE && client.getStatus() != ClientStatus.APPROVED) {
-            throw new RuntimeException("Client is not active");
-        }
-
-        String apiKey = apiKeyGenerator.generateApiKey();
-        String apiSecret = apiKeyGenerator.generateApiSecret();
-        String secretHash = apiKeyGenerator.hashSecret(apiSecret);
-
-        ApiKey newApiKey = ApiKey.builder()
-                .client(client)
-                .apiKey(apiKey)
-                .apiSecretHash(secretHash)
-                .description(description)
-                .active(true)
-                .expiresAt(LocalDateTime.now().plusYears(1))
-                .build();
-
-        ApiKey savedKey = apiKeyRepository.save(newApiKey);
-
-        return ApiKeyResponse.builder()
-                .id(savedKey.getId())
-                .apiKey(apiKey)
-                .apiSecret(apiSecret)  // Only returned once
-                .active(savedKey.getActive())
-                .description(savedKey.getDescription())
-                .createdAt(savedKey.getCreatedAt())
-                .expiresAt(savedKey.getExpiresAt())
-                .build();
-    }
-
     @Transactional
     public void revokeApiKey(UUID keyId) {
         ApiKey apiKey = apiKeyRepository.findById(keyId)
@@ -191,13 +150,15 @@ public class AdminService {
         log.info("API Key revoked: {}", keyId);
     }
 
-    public List<ApiKeyResponse> getClientApiKeys(UUID clientId) {
-        Client client = clientRepository.findById(clientId)
-                .orElseThrow(() -> new RuntimeException("Client not found"));
+    public List<String> getKeycloakRoles() {
+        RealmResource realmResource = keycloakAdmin.realm(realm);
 
-        return apiKeyRepository.findByClient(client).stream()
-                .map(this::toApiKeyResponse)
-                .collect(Collectors.toList());
+        return realmResource
+                .roles()
+                .list()
+                .stream()
+                .map(RoleRepresentation::getName)
+                .toList();
     }
 
     // === User Management ===
@@ -210,45 +171,19 @@ public class AdminService {
 
     // === Keycloak Helpers ===
 
-    private void enableKeycloakUser(String userId) {
-        try {
-            RealmResource realmResource = keycloakAdmin.realm(realm);
-
-            UserResource userResource =
-                    realmResource.users().get(userId);
-
-            // Enable the user
-            UserRepresentation user =
-                    userResource.toRepresentation();
-
-            user.setEnabled(true);
-
-            userResource.update(user);
-
-            // Get the ROLE_CLIENT realm role
-            RoleRepresentation clientRole =
-                    realmResource
-                            .roles()
-                            .get("ROLE_CLIENT")
-                            .toRepresentation();
-
-            // Assign ROLE_CLIENT to the user
-            userResource
-                    .roles()
-                    .realmLevel()
-                    .add(Collections.singletonList(clientRole));
-
-            log.info(
-                    "Keycloak user {} enabled and ROLE_CLIENT assigned",
-                    userId
-            );
-
+    private void enableKeycloakUser( String userId, List<String> approvedRoles ) {
+        try { RealmResource realmResource = keycloakAdmin.realm(realm);
+        UserResource userResource = realmResource.users().get(userId); // Enable the user
+        UserRepresentation user = userResource.toRepresentation();
+        user.setEnabled(true); userResource.update(user);
+        // Convert approved role names to Keycloak RoleRepresentations
+         List<RoleRepresentation> rolesToAssign = approvedRoles.stream()
+                 .map(roleName -> realmResource .roles() .get(roleName) .toRepresentation())
+                 .toList(); // Assign all approved realm roles
+             if (!rolesToAssign.isEmpty()) { userResource .roles() .realmLevel() .add(rolesToAssign); }
+             log.info( "Keycloak user {} enabled and roles assigned: {}", userId, approvedRoles );
         } catch (Exception e) {
-            log.error(
-                    "Failed to enable and assign role to Keycloak user {}",
-                    userId,
-                    e
-            );
+            log.error( "Failed to enable user {} and assign roles {}", userId, approvedRoles, e );
         }
     }
 
@@ -283,19 +218,6 @@ public class AdminService {
                 .createdAt(client.getCreatedAt())
                 .approvedAt(client.getApprovedAt())
                 .userCount(client.getUsers() != null ? client.getUsers().size() : 0)
-                .build();
-    }
-
-    private ApiKeyResponse toApiKeyResponse(ApiKey apiKey) {
-        return ApiKeyResponse.builder()
-                .id(apiKey.getId())
-                .apiKey(apiKey.getApiKey())
-                .apiSecret(null)  // Don't expose secret
-                .active(apiKey.getActive())
-                .description(apiKey.getDescription())
-                .createdAt(apiKey.getCreatedAt())
-                .lastUsedAt(apiKey.getLastUsedAt())
-                .expiresAt(apiKey.getExpiresAt())
                 .build();
     }
 }

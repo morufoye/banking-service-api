@@ -1,5 +1,6 @@
 package com.banking.api.controller;
 
+import com.banking.api.dto.ApproveClientRequest;
 import com.banking.api.dto.ClientResponse;
 import com.banking.api.entity.ClientStatus;
 import com.banking.api.service.AdminService;
@@ -34,6 +35,11 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getAllClients());
     }
 
+    @GetMapping("/roles")
+    public ResponseEntity<List<String>> getKeycloakRoles() {
+        return ResponseEntity.ok(adminService.getKeycloakRoles());
+    }
+
     @GetMapping("/clients/pending")
     public ResponseEntity<List<ClientResponse>> getPendingClients() {
         return ResponseEntity.ok(adminService.getClientsByStatus(ClientStatus.PENDING));
@@ -44,10 +50,24 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getClientById(clientId));
     }
 
+
     @PutMapping("/clients/{clientId}/approve")
-    public ResponseEntity<ClientResponse> approveClient(@PathVariable UUID clientId) {
-        log.info("Approving client: {}", clientId);
-        return ResponseEntity.ok(adminService.approveClient(clientId));
+    public ResponseEntity<ClientResponse> approveClient(
+            @PathVariable UUID clientId,
+            @RequestBody ApproveClientRequest request
+    ) {
+        log.info(
+                "Approving client: {} with roles: {}",
+                clientId,
+                request.approvedRoles()
+        );
+
+        return ResponseEntity.ok(
+                adminService.approveClient(
+                        clientId,
+                        request.approvedRoles()
+                )
+        );
     }
 
     @PutMapping("/clients/{clientId}/reject")
@@ -63,28 +83,9 @@ public class AdminController {
     }
 
     @PutMapping("/clients/{clientId}/activate")
-    public ResponseEntity<ClientResponse> activateClient(@PathVariable UUID clientId) {
+    public ResponseEntity<ClientResponse> activateClient(@PathVariable UUID clientId,  @RequestBody ApproveClientRequest request) {
         log.info("Activating client: {}", clientId);
-        return ResponseEntity.ok(adminService.activateClient(clientId));
+        return ResponseEntity.ok(adminService.activateClient(clientId, request.approvedRoles()));
     }
 
-    @PostMapping("/clients/{clientId}/api-keys")
-    public ResponseEntity<?> generateApiKey(
-            @PathVariable UUID clientId,
-            @RequestParam String description) {
-        log.info("Generating API key for client: {}", clientId);
-        return ResponseEntity.ok(adminService.generateApiKey(clientId, description));
-    }
-
-    @GetMapping("/clients/{clientId}/api-keys")
-    public ResponseEntity<?> getClientApiKeys(@PathVariable UUID clientId) {
-        return ResponseEntity.ok(adminService.getClientApiKeys(clientId));
-    }
-
-    @DeleteMapping("/api-keys/{keyId}")
-    public ResponseEntity<Void> revokeApiKey(@PathVariable UUID keyId) {
-        log.info("Revoking API key: {}", keyId);
-        adminService.revokeApiKey(keyId);
-        return ResponseEntity.noContent().build();
-    }
 }
