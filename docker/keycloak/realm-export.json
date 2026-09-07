@@ -14,7 +14,9 @@
   "loginTheme": "banking",
   "accountTheme": "banking",
   "adminTheme": "banking",
-  "defaultRoles": ["default-roles-banking"],
+  "defaultRoles": [
+    "default-roles-banking"
+  ],
   "roles": {
     "realm": [
       {
@@ -57,8 +59,12 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["ROLE_ADMIN"],
-      "groups": ["admins"]
+      "realmRoles": [
+        "ROLE_ADMIN"
+      ],
+      "groups": [
+        "admins"
+      ]
     }
   ],
   "clients": [
@@ -135,16 +141,42 @@
         "http://localhost:3000"
       ],
       "protocol": "openid-connect"
+    },
+    {
+      "clientId": "banking-swagger",
+      "name": "Banking Swagger UI",
+      "description": "Swagger UI OAuth2 client for Banking Platform API",
+      "enabled": true,
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8082/swagger-ui/oauth2-redirect.html"
+      ],
+      "webOrigins": [
+        "http://localhost:8082"
+      ],
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
     }
   ],
   "groups": [
     {
       "name": "admins",
-      "realmRoles": ["ROLE_ADMIN"]
+      "realmRoles": [
+        "ROLE_ADMIN"
+      ]
     },
     {
       "name": "clients",
-      "realmRoles": ["ROLE_CLIENT"]
+      "realmRoles": [
+        "ROLE_CLIENT"
+      ]
     }
   ],
   "smtpServer": {
